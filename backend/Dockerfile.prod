@@ -1,0 +1,38 @@
+# Production image: no dev dependencies, non-root user, separate migrations.
+# Access logs are disabled because query strings can carry tokens.
+#
+# Build from the monorepo root:
+#   docker build -f backend/Dockerfile.prod -t vibony-backend:prod .
+#
+# NOTE: pin the base image by digest before a real prod deploy, e.g.
+#   FROM python:3.12-slim@sha256:<digest>
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/repo/backend \
+    PIP_NO_CACHE_DIR=1
+
+RUN pip install --no-cache-dir poetry==1.6.1 && \
+    poetry config virtualenvs.create false
+
+WORKDIR /repo/backend
+
+# Install only the main (production) dependency group — no pytest/ruff/etc..
+COPY backend/pyproject.toml backend/poetry.lock ./
+RUN poetry install --no-interaction --no-root --only main
+
+COPY backend/ .
+COPY configs /repo/configs
+COPY tasks /repo/tasks
+
+# Run as a non-root user. The backend never writes into its image tree.
+RUN useradd --create-home --uid 1001 appuser && chown -R appuser /repo
+USER appuser
+
+EXPOSE 8000
+
+# No --reload, no access log (tokens travel in WS/replay query strings),
+# no `alembic upgrade head` (migrations run as a one-shot job in compose).
+CMD ["uvicorn", "vibony_backend.main:app", \
+     "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

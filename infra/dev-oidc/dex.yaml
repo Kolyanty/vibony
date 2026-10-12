@@ -1,0 +1,37 @@
+# Dex config for local OIDC dev.
+# Boot: docker compose --profile dev-oidc up dex
+# Backend .env:
+#   VIBONY_AUTH_MODE=oidc
+#   VIBONY_OIDC_ISSUER=http://localhost:5556
+#   VIBONY_OIDC_CLIENT_ID=vibony-dev
+#   VIBONY_OIDC_CLIENT_SECRET=vibony-dev-secret
+
+issuer: http://localhost:5556
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+staticClients:
+  - id: vibony-dev
+    secret: vibony-dev-secret
+    redirectURIs:
+      - http://localhost:8000/auth/oidc/callback
+    name: Vibony Dev
+
+enablePasswordDB: true
+
+# Two static users for manual smoke testing.
+# Password for both is "password".
+staticPasswords:
+  - email: admin@dev.local
+    # bcrypt hash of "password", cost 10
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: admin
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+  - email: interviewer@dev.local
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: interviewer
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5467"

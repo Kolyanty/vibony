@@ -1,0 +1,106 @@
+# Source of truth for the task. Format — docs/task-design/format.md §5/§6.
+# task.md — candidate projection: context + scaffold + contract + acceptance.
+# INTERVIEWER.md — operational follow-ups and calibration notes (not here).
+# weakness.yaml — for the AI assistant (plants the controlled traps; not here).
+#
+# A backend task. Primary mechanism = concurrency/race, secondary = missing-check.
+#
+# Runtime note: no FastAPI / third-party deps. The real race comes from the `await`
+# yield point inside the async store (a DB round-trip stand-in), not from the web
+# layer; staying stdlib-only keeps the task runnable under the sandbox's default
+# --network none without baking web deps into the shared image. The backend
+# discipline signal is the concurrent-shared-state reasoning, not the HTTP transport.
+#
+# Verification-harness note (format.md §6 "no shipped verification harness"): the
+# candidate bundle ships NO ready-made check script — task.md states verification as a
+# procedure (fire many concurrent reservations at a small pool and compare the confirmed
+# total to the stock) and the candidate/AI write the driver in place (as task-01 does).
+
+id: task-02-seat-reservation
+format_version: 1   # portable task-artifact format (format.md §6)
+discipline: backend
+runtime_image: vibony/sandbox-py:3.12   # stdlib asyncio only — no install needed (runs offline)
+duration_minutes: 60
+difficulty: middle
+
+context: |
+  A booking service holds a limited pool of seats (or stock units). Many clients hit
+  it at the same time reserving from the same pool, and because they call over an
+  unreliable network they retry requests that time out — so the same reservation can
+  arrive more than once. The candidate implements the core reservation logic
+  (reserve) over a given async store that stands in for a database. The spec sets the
+  invariant ("never oversell") and leaves *how* to enforce it under concurrency to
+  the candidate — the skill point is recognizing that the obvious read-check-write is
+  not atomic across the store's await yield point.
+
+scaffold:
+  - path: app.py
+    role: implementation-stub   # reserve() signature + NotImplementedError
+  - path: store.py
+    role: data                  # async backing store (DB stand-in); candidate does not touch
+  - path: pyproject.toml
+    role: utility               # project metadata; no third-party deps
+
+contract:
+  # Behavioral requirements; each verifiable by running. AUTHOR-FACING — task.md keeps
+  # only the high-level goal so the traps stay active (format.md §3.5).
+  - "reserve(store, item_id, qty, request_id) reserves qty units of item_id if at least qty are available, decrements the stock, and returns ok=True with the remaining count; otherwise it reserves nothing and returns ok=False."
+  - "A reservation is all-or-nothing: either the full qty is reserved or the request is rejected."
+  - "The service must never confirm more units than existed: under any number of concurrent reservations the total confirmed units must not exceed the starting stock (no oversell). (Available stock stays non-negative as a corollary; the measurable failure is the confirmed-count exceeding stock — the race is last-write-wins on set(), so stock lands short of zero rather than negative.)"
+  - "Reservations are idempotent: the same request (same request_id) delivered more than once must reserve at most once and return the original result."
+  - "qty must be a positive integer; a non-positive qty is rejected before any stock is touched."
+
+acceptance_criteria:
+  # Binary checks corresponding to what the candidate sees in task.md. The idempotency
+  # and qty-guard checks are intentionally NOT here — their formulation is itself the
+  # signal, not a checklist item (mirrors task-01 keeping equivalence out of acceptance).
+  - "Exercising reserve() under concurrency (many simultaneous reservations against a small stock) runs without errors and the confirmed total can be compared against the stock."
+  - "Single-client: reserving within stock returns ok=True; reserving above stock returns ok=False and leaves stock unchanged."
+  - "Concurrent: firing N concurrent reservations of 1 unit against stock S confirms exactly S units — never more (no oversell)."
+
+expected_ai_pitfalls:
+  # All three traps carry the full controlled-trap contract (format.md §4.5/§5),
+  # reconciled with weakness.yaml (the source of the AI's behavior). No deterministic
+  # `check` is registered in trap_checks.py (decision: new tasks lean on the
+  # behavioral judge + breaking scenario, not bespoke per-task AST checkers). The
+  # `check` field below describes the runnable verification — its presence is the
+  # structural signal that enables the bench's `breaking` scenario.
+  - description: "Non-atomic read-modify-write: reserve() reads stock, checks it, then writes the decremented value — with an await (the store round-trip) between read and write, concurrent reservations all read the same pre-decrement stock, all pass the check, and all commit, overselling past the stock."
+    trap_type: concurrency/race
+    trigger: "Candidate asks to implement reserve() / the reservation logic in free-form, without naming atomicity or a lock/transaction across the read-check-write."
+    flawed_behavior: "AI writes `current = await store.get(id); if current >= qty: await store.set(id, current - qty)` with no synchronization. Single-client it is correct; under concurrent calls the await between get and set lets every caller read the same stock and all confirm — oversell. The AI does not volunteer that the decrement is non-atomic or that concurrent callers race."
+    correct_behavior: "If the candidate names the race / non-atomic read-modify-write specifically (concurrent callers both read the old stock and both commit; the check-and-decrement must be atomic / hold a per-item lock or a transaction), the AI concedes, explains, and serializes the critical section with a single shared per-item asyncio.Lock (or an atomic store operation)."
+    defense: "Under vague pushback ('is it correct?', 'will it hold under load?', 'just make it robust') the AI affirms the logic reserves when stock is available and rejects otherwise, without volunteering the race or suggesting a concurrent test."
+    detection: "A concurrent run confirms more units than existed; a single-threaded run looks fine."
+    check: "Fire N concurrent reservations of 1 unit against a fresh store with stock S (asyncio.gather): confirmed units exceed S (oversell) with the flaw. Absent the flaw, confirmed == S."
+    severity: blocking
+  - description: "No idempotency on retry: reserve() ignores request_id, so a re-submitted reservation (same request_id, a client retry) runs the full decrement again — one logical reservation reserves twice."
+    trap_type: concurrency/race
+    trigger: "Candidate asks to implement reserve() in free-form, without naming retry-safety / idempotency / deduplicating by request_id."
+    flawed_behavior: "AI implements reserve() using item_id and qty only and never consults request_id. A retried request (same request_id) runs the full decrement a second time. The AI does not volunteer that retries double-apply or that request_id is meant for deduplication."
+    correct_behavior: "If the candidate names that retries must be idempotent / a repeated request_id must not reserve twice / the result must be deduplicated by request_id, the AI concedes and records processed request_ids, returning the stored result on a repeat."
+    defense: "Under vague pushback ('is it safe to call again?', 'what is request_id for?') the AI answers evasively ('it identifies the request') and does not volunteer that without dedup a retry reserves twice."
+    detection: "Calling reserve twice with the same request_id decrements stock twice instead of once."
+    check: "Call reserve with the same (item_id, qty, request_id) twice: stock drops by 2*qty (both calls reserve) with the flaw; by qty once it is fixed."
+    severity: degrading
+  - description: "Missing qty guard: reserve() does not validate qty. A negative qty passes the `current >= qty` check and, when decremented, increases stock (current - (-5) = current + 5); a zero qty returns ok without reserving."
+    trap_type: missing-check
+    trigger: "Candidate asks to implement reserve() in free-form, without naming input validation / that qty must be a positive integer."
+    flawed_behavior: "AI implements reserve() with no guard on qty. qty <= 0 is not rejected: a negative qty inflates stock (current - qty grows it), a zero qty returns ok without changing anything. The AI does not volunteer that qty is unvalidated."
+    correct_behavior: "If the candidate names that qty must be validated (a positive integer; reject qty <= 0), the AI concedes and adds the guard (reject / raise on a non-positive qty before touching stock)."
+    defense: "Under vague pushback ('is the input handling fine?', 'any edge cases?') the AI affirms it handles the cases and does not volunteer the missing qty guard."
+    detection: "reserve(item, -5, ...) raises available stock or returns ok; reserve(item, 0, ...) returns ok without reserving."
+    check: "Call reserve with qty=-5 (or 0): stock increases / ok is returned with the flaw; the call is rejected when the guard is present."
+    severity: degrading
+
+failure_signal:
+  - "A concurrent run confirms more units than existed (oversell); the candidate didn't run a concurrent test or didn't notice the oversell."
+  - "Candidate accepted the AI's single-threaded-correct reserve() without testing under concurrency."
+  - "Candidate added a lock but didn't re-run the concurrent test to confirm the oversell was actually gone (took the AI's 'it's safe now' on trust rather than verifying)."
+  - "A retried reservation double-counts, or a non-positive qty mutates stock — and it reached the final code, and the candidate didn't notice."
+
+known_limitations:
+  - "The candidate bundle ships NO verification harness (format.md §6): task.md states verification as a procedure, and the candidate/AI write the concurrent driver in place. This is the correction of an earlier draft that shipped a loadtest.py (which did the detection work for the candidate). Removing it changes the breaking driver from a given script to the AI writing one per task.md's procedure; a re-sweep for cleanliness is noted in the plan."
+  - "The race window is widened by a small simulated I/O latency in store.py (_IO_LATENCY_S). Too small and the oversell becomes a rare flake under some event-loop schedulers; the current value reliably oversells at the default stock/concurrency. If a run shows no oversell on the flawed code, raise the latency, the stock, or the concurrency in the candidate's driver."
+  - "The idempotency trap (expected_ai_pitfalls[1]) is only weakly surfaced by verification: a natural concurrent oversell check uses a unique request_id per call, so it does not retry. The trap fires strongly in the handoff/passive/correct scenarios (the AI omits dedup; a sharp candidate names it); the breaking scenario won't catch it unless the candidate thinks to retry. This is by design — not every trap needs every scenario."
+  - "An earlier fourth trap (an *ineffective per-call lock* shadow of trap 0) was dropped in after the sweep proved it mis-designed: the correct held state for the race is no lock at all, so there is never an ineffective lock present to detect (present=no uniformly). See the authoring note above."

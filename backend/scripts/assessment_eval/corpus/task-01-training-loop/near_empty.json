@@ -1,0 +1,29 @@
+{
+  "task_id": "task-01-training-loop",
+  "key": "near_empty",
+  "kind": "near_empty",
+  "persona": "Candidate opened the session and did essentially nothing.",
+  "label": {
+    "near_empty": true,
+    "triggered_pitfalls": [],
+    "fought_ai": false,
+    "notes": "no candidate activity"
+  },
+  "events": [
+    [
+      1,
+      "session_start",
+      {
+        "task_id": "task-01-training-loop"
+      }
+    ],
+    [
+      2,
+      "session_end",
+      {
+        "reason": "timeout"
+      }
+    ]
+  ],
+  "final_files": {}
+}

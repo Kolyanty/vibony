@@ -1,0 +1,144 @@
+/* Structural session timeline (right-panel tab). Tokens from src/index.css. */
+
+.root {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: center;
+}
+
+.phase {
+  margin-bottom: 4px;
+}
+
+.phaseHeader {
+  display: flex;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  color: var(--foreground);
+  font-weight: 600;
+  font-size: 12px;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.phaseHeader:disabled {
+  cursor: default;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.phaseHeader:not(:disabled):hover {
+  background: var(--muted);
+}
+
+.phaseLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 4px 12px 4px 22px;
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.entry:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.entryLabel {
+  flex-shrink: 0;
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.entryText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--muted-foreground);
+}
+
+.exit {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.exit[data-fail='true'] {
+  background: color-mix(in srgb, var(--destructive) 14%, transparent);
+  color: var(--destructive);
+}
+
+/* Persistent "you are here" highlight — cursor position. */
+.phaseHeader[data-active='true'],
+.entry[data-active='true'] {
+  background: var(--muted);
+  border-left-color: var(--primary);
+  color: var(--foreground);
+}
+
+/* Transient deep-link flash (from an AI-assessment finding). */
+.phaseHeader[data-flash='true'],
+.entry[data-flash='true'] {
+  animation: timeline-flash 1.5s ease-out;
+}
+
+@keyframes timeline-flash {
+  0% {
+    background: color-mix(in srgb, var(--primary) 32%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phaseHeader[data-flash='true'],
+  .entry[data-flash='true'] {
+    animation: none;
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+}

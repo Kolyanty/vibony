@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests and package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # pytest-postgresql starts an isolated cluster; no service DB is used.
+      PGCTL: /usr/lib/postgresql/16/bin/pg_ctl
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      POETRY_VIRTUALENVS_IN_PROJECT: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PostgreSQL binaries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-16
+      - name: Install Poetry
+        # Match the version that generated backend/poetry.lock.
+        run: python -m pip install poetry==1.6.1
+      - name: Install locked dependencies
+        run: |
+          poetry check --lock
+          poetry install --no-interaction --with dev
+      - name: Test
+        # Docker integration tests run locally; ordinary CI needs no images or API keys.
+        run: poetry run pytest -q -ra -m "not docker"
+      - name: Build Python package
+        run: poetry build
+
+  dashboard:
+    name: Dashboard tests, lint and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: dashboard/.nvmrc
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint -- --max-warnings=0
+      - name: Test
+        run: npm run test
+      - name: Build
+        env:
+          # Vite's editor bundle exceeds the runner's default ~2 GiB Node heap.
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run build

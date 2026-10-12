@@ -1,0 +1,19 @@
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.venv
+**/dist
+**/*.egg-info
+
+# Node
+**/node_modules
+dashboard/dist
+
+# Secrets — passed via env_file in compose, not baked into image
+backend/.env
+
+# Large / irrelevant
+experiments
+.git

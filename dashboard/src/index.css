@@ -1,0 +1,173 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Dark mode is opt-in via a `.dark` class, never via system preference.
+   The design ships light-only; this keeps shadcn `dark:` utilities dormant. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system (direction C "warm modern SaaS", light theme).
+ *
+ * Single token layer: shadcn semantic vars (--background, --primary, --muted, …)
+ * + brand extras (--brand-teal, --success/--warn, --code-bg) declared in :root
+ * and mapped via `@theme inline` into Tailwind utilities. CSS-module components
+ * read these directly via `var(--token)`; the ui/* primitives read them through
+ * the generated utilities. The previous `--color-*` layer was removed once
+ * every component was migrated onto these tokens.
+ */
+
+:root {
+  /* Font stacks + base sizing. Consumed both by var(--font-sans|mono) in the
+     CSS modules and (mirrored) by the `@theme inline` font utilities below. */
+  --font-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --font-size-base: 14.5px;
+  --font-size-sm: 13px;
+  --line-height-base: 1.55;
+
+  /* ===== Design tokens (C, light) ===== */
+  --background: #fbfaf7;
+  --foreground: #1c1b29;
+  --card: #ffffff;
+  --card-foreground: #1c1b29;
+  --popover: #ffffff;
+  --popover-foreground: #1c1b29;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --primary-soft: #eef0fe;
+  --secondary: #f1eee9;
+  --secondary-foreground: #1c1b29;
+  --muted: #f5f3ef;
+  --muted-foreground: #6c6a7c;
+  --accent: #eef0fe;
+  --accent-foreground: #4b4fd6;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fef2f2;
+  --border: #ece9e3;
+  --input: #ece9e3;
+  --ring: #6366f1;
+
+  /* brand extras (not part of the shadcn base set) */
+  --brand-teal: #14b8a6;
+  --brand-teal-soft: #e2f7f3;
+  --code-bg: rgba(28, 27, 41, 0.05);
+  --success: #16a34a;
+  --success-soft: #e7f6ec;
+  --warn: #d97706;
+  --warn-soft: #fdf0dd;
+
+  --radius: 0.625rem; /* 10px */
+
+  --shadow-sm: 0 1px 2px rgba(28, 27, 41, 0.06);
+  --shadow-md: 0 4px 16px -4px rgba(28, 27, 41, 0.12);
+  --shadow-lg: 0 30px 70px -30px rgba(28, 27, 41, 0.22);
+
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-teal: var(--brand-teal);
+  --color-teal-soft: var(--brand-teal-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  /* Mirrors the :root font stacks (CSS modules read var(--font-sans); this
+     drives the Tailwind `font-sans`/`font-mono` utilities). Keep both in sync.
+     Manrope is self-hosted via @fontsource-variable/manrope (imported in
+     main.tsx). */
+  --font-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-soft-sm: var(--shadow-sm);
+  --shadow-soft-md: var(--shadow-md);
+  --shadow-soft-lg: var(--shadow-lg);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Element base styles live in @layer base so Tailwind utilities (in @layer
+   utilities, which wins over base) can override them — otherwise an unlayered
+   `a { color }` would beat `text-*` utilities on <Button asChild><Link/></Button>
+   and paint button labels the link color. */
+@layer base {
+  /* shadcn convention: default border + outline color to the theme tokens.
+     Tailwind v4's bare `border` utility resolves to currentColor (near-black
+     ink here), so shadcn primitives that use bare `border`/`outline` (Card,
+     Dialog, …) would otherwise draw dark edges. Width-only utilities are
+     unaffected when no border is set. */
+  * {
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  /* Keyboard-focus baseline for native / CSS-module interactive elements.
+     shadcn ui/* primitives opt out via the `outline-none` utility (it wins over
+     this base layer) and draw their own focus ring, so they don't double up. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  /* Inline-code chip only. `pre > code` (code blocks) keep their own styling
+     so the chip background doesn't stripe every line of a block. */
+  :not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+  }
+}

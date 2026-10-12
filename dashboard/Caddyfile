@@ -1,0 +1,37 @@
+# Production front: static SPA host + same-origin API/WS reverse proxy.
+#
+# Same-origin is required so the SPA's relative fetch() works and the SameSite=Strict
+# session cookie is sent on API calls. Set VIBONY_SITE_ADDRESS to your domain
+# (e.g. app.vibony.io) for automatic HTTPS via Caddy/ACME; defaults to :80 behind an
+# external TLS terminator.
+
+{
+	admin off
+}
+
+{$VIBONY_SITE_ADDRESS::80} {
+	encode gzip zstd
+	root * /srv
+
+	# Static-asset security headers (the backend middleware sets these for API
+	# responses; mirror them for the SPA shell + assets).
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# API + WebSocket → backend (reverse_proxy auto-upgrades WS). Keep this list in
+	# sync with the backend routers in main.py.
+	@api path /auth/* /v1/* /sessions/* /workspaces/* /invites/* /tasks/* /tasks /health /ready
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	# SPA client-side routes: serve built assets, fall back to index.html.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

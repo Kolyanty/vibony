@@ -1,0 +1,138 @@
+# Hardened production stack. The root docker-compose.yml is the DEV stack
+# (source + docker.sock mounts, published :5432, hot-reload) and must NOT be deployed.
+# This file closes:
+#   R2   — backend no longer mounts the raw host docker.sock; it reaches the daemon
+#          through a gated docker-socket-proxy (create/exec/images only) and runs non-root.
+# — real prod images (Dockerfile.prod): no dev servers, no dev deps.
+# — migrations are a one-shot `migrate` job, not the backend CMD.
+# — DB creds + TLS come from env, never the committed vibony/vibony default.
+# — app-container resource limits + a /ready DB-ping healthcheck.
+# — no source/sock mounts, Postgres port not published to the host.
+#
+# Required env (set in a root .env, NOT committed): POSTGRES_PASSWORD,
+# VIBONY_DATABASE_URL (with ?ssl=verify-full), VIBONY_SESSION_SECRET, VIBONY_ENV=production,
+# VIBONY_FRONTEND_URL (https), VIBONY_COOKIE_SECURE=true, VIBONY_ALLOWED_HOSTS,
+# VIBONY_ALLOWED_ORIGINS, VIBONY_SITE_ADDRESS, provider API key(s).
+#
+# Linux-host verification residual: the docker-socket-proxy flag set + sandbox
+# provider over tcp:// has not been exercised on macOS/CI — verify on a Linux host.
+
+services:
+  postgres:
+ # pin by digest before prod, e.g. postgres:16@sha256:<digest>
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-vibony}
+ # NOT published to the host — only the app network reaches it.
+    expose:
+      - "5432"
+    volumes:
+      - vibony_postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-vibony}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # R2: a hardened, read-only Docker API gateway. The backend talks to THIS over tcp
+  # (DOCKER_HOST=tcp://docker-socket-proxy:2375) instead of bind-mounting the raw
+  # socket, so a backend RCE can only reach the explicitly-enabled API sections.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    environment:
+      # Sandbox provider needs: create/start/remove containers, exec, image inspect.
+      CONTAINERS: "1"
+      IMAGES: "1"
+      EXEC: "1"
+      NETWORKS: "1"
+      POST: "1"        # allow POST (create/start/exec); GET-only otherwise
+      INFO: "1"
+      VERSION: "1"
+      # Everything else stays denied (the proxy defaults to 0).
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-control]
+    expose:
+      - "2375"
+
+ # migrations as a one-shot job (run to completion before the backend starts).
+  # Reuses the backend's built image by tag (the `build:` lives on the backend service).
+  migrate:
+    image: vibony-backend:prod
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      VIBONY_DATABASE_URL: ${VIBONY_DATABASE_URL:?set VIBONY_DATABASE_URL}
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    networks: [internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    image: vibony-backend:prod
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      VIBONY_DATABASE_URL: ${VIBONY_DATABASE_URL:?set VIBONY_DATABASE_URL}
+      VIBONY_ENV: production
+      VIBONY_SANDBOX_PROVIDER: docker
+      # R2: reach the daemon through the gated proxy, never the raw socket.
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    networks: [internal, docker-control]
+ # app-container resource limits.
+    mem_limit: 1g
+    cpus: 2.0
+    pids_limit: 512
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  dashboard:
+    image: vibony-dashboard:prod
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      # Domain for Caddy auto-HTTPS (ACME). Set to your host, e.g. app.vibony.io.
+      # Compose default syntax is `:-`; the Caddyfile keeps its own `::80` default.
+      VIBONY_SITE_ADDRESS: ${VIBONY_SITE_ADDRESS:-:80}
+    networks: [internal]
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  # App traffic (db + backend + dashboard). No host port exposure beyond the front.
+  internal:
+  # Isolates the Docker-control path: only the backend + the proxy join it.
+  docker-control:
+
+volumes:
+  vibony_postgres_data:

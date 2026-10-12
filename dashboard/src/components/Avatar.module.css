@@ -1,0 +1,31 @@
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  user-select: none;
+}
+
+.avatar[data-size='md'] {
+  width: 32px;
+  height: 32px;
+}
+
+.avatar[data-size='sm'] {
+  width: 24px;
+  height: 24px;
+}
+
+.avatar[data-role='candidate'] {
+  background: var(--primary);
+}
+
+.avatar[data-role='ai'] {
+  background: var(--brand-teal);
+}
+
+.avatar[data-role='tool'] {
+  background: var(--muted-foreground);
+}

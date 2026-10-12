@@ -1,0 +1,113 @@
+{
+  "task_id": "task-01-training-loop",
+  "key": "single__no_optimizer_state",
+  "kind": "single",
+  "persona": "Checkpoint saves only model.state_dict(): no optimizer/RNG/epoch. Candidate never runs the resume-equivalence check.",
+  "label": {
+    "near_empty": false,
+    "triggered_pitfalls": [
+      0,
+      1,
+      4
+    ],
+    "fought_ai": false,
+    "notes": "naive checkpoint = only model.state_dict() (pitfall 0, also no epoch counter); no best tracking at all so returns last weights (pitfall 1); RNG not saved (pitfall 4). Pitfall 3 (torch.load) only latent - pure-tensor checkpoint does not crash. No equivalence test run."
+  },
+  "events": [
+    [
+      1,
+      "session_start",
+      {
+        "task_id": "task-01-training-loop"
+      }
+    ],
+    [
+      2,
+      "user_message",
+      {
+        "text": "Implement train() with checkpoint after each epoch and resume from checkpoint.pt."
+      }
+    ],
+    [
+      3,
+      "assistant_message",
+      {
+        "text": "Sure. I'll save the model after each epoch with torch.save(model.state_dict(), checkpoint_path) and load it back on resume. That preserves the trained weights."
+      }
+    ],
+    [
+      4,
+      "tool_call",
+      {
+        "tool_name": "edit_file",
+        "input": {
+          "file_path": "train.py"
+        }
+      }
+    ],
+    [
+      5,
+      "tool_result",
+      {
+        "output": "train.py written",
+        "is_error": false
+      }
+    ],
+    [
+      6,
+      "file_changed",
+      {
+        "op": "modified",
+        "file_path": "train.py",
+        "source": "ai"
+      }
+    ],
+    [
+      7,
+      "user_message",
+      {
+        "text": "Does it run?"
+      }
+    ],
+    [
+      8,
+      "command_run",
+      {
+        "command": "poetry run python train.py"
+      }
+    ],
+    [
+      9,
+      "command_output",
+      {
+        "command_id": "c1",
+        "data": "epoch 00 | val 0.88\nepoch 09 | val 0.12"
+      }
+    ],
+    [
+      10,
+      "command_finished",
+      {
+        "command_id": "c1",
+        "exit_code": 0
+      }
+    ],
+    [
+      11,
+      "user_message",
+      {
+        "text": "Trains fine, checkpoint is written. Looks done."
+      }
+    ],
+    [
+      12,
+      "session_end",
+      {
+        "reason": "submitted"
+      }
+    ]
+  ],
+  "final_files": {
+    "train.py": "import torch, torch.nn as nn, os\nfrom model import MLP\nfrom data import make_data\n\n\ndef train(model, train_loader, val_loader, n_epochs=20, lr=1e-3, patience=3, checkpoint_path=\"checkpoint.pt\"):\n    optimizer = torch.optim.Adam(model.parameters(), lr=lr)\n    loss_fn = nn.MSELoss()\n    if os.path.exists(checkpoint_path):\n        model.load_state_dict(torch.load(checkpoint_path))   # only weights restored\n    best = float(\"inf\"); no_improve = 0\n    for epoch in range(n_epochs):                            # always starts at 0 on resume\n        model.train()\n        for x, y in train_loader:\n            optimizer.zero_grad(); loss = loss_fn(model(x), y); loss.backward(); optimizer.step()\n        model.eval()\n        with torch.no_grad():\n            val = sum(loss_fn(model(x), y).item() for x, y in val_loader)\n        torch.save(model.state_dict(), checkpoint_path)      # only model.state_dict()\n        print(f\"epoch {epoch:02d} | val {val:.4f}\")\n        if val < best: best = val; no_improve = 0\n        else: no_improve += 1\n        if no_improve >= patience: break\n    return model\n"
+  }
+}

@@ -1,0 +1,128 @@
+/* Selection accent is parent-controlled via --tree-accent: interviewer/replay fall
+   back to indigo (--primary); the candidate IDE sets it to teal on .fileTreePanel to
+   match the candidate brand. Fallbacks live at each var() use-site (not on .root)
+   so a value inherited from an ancestor is not clobbered here. */
+.root {
+  list-style: none;
+  margin: 0;
+  padding: 6px 6px;
+  font-size: 13px;
+}
+
+.nested {
+  list-style: none;
+  margin: 0 0 0 13px;
+  padding: 0 0 0 7px;
+  /* Vertical indent guide for each nesting level. */
+  border-left: 1px solid var(--border);
+}
+
+.dirRow,
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--foreground);
+  border-radius: 6px;
+  padding: 4px 8px;
+  /* Stable left edge so the inset accent bar on active rows never shifts content. */
+  box-shadow: inset 2px 0 0 transparent;
+  transition: background-color 0.1s ease;
+}
+
+/* File rows have no chevron — pad so the file icon lines up under folder icons. */
+.fileRow {
+  padding-left: 27px;
+}
+
+.dirRow:hover,
+.fileRow:hover {
+  background: var(--muted);
+}
+
+.fileRow[data-active='true'] {
+  background: var(--tree-accent-soft, var(--primary-soft));
+  color: var(--tree-accent, var(--primary));
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--tree-accent, var(--primary));
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: transform 0.12s ease;
+}
+
+.chevron[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+.dirIcon {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.fileIcon {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.fileRow[data-active='true'] .fileIcon {
+  color: var(--tree-accent, var(--primary));
+}
+
+.dirName {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.fileName {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+
+.sourceBadge {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.sourceBadge[data-source='agent'] {
+  color: var(--brand-teal);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.sourceBadge[data-source='manual'] {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid var(--primary);
+}
+
+/* baseline — the file's initial state, not an edit. No badge at all —
+   otherwise every untouched file shouts "BASELINE". */
+.sourceBadge[data-source='baseline'] {
+  display: none;
+}
+
+/* dot: "file changed from its initial state". */
+.modifiedDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+}

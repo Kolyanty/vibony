@@ -1,0 +1,103 @@
+.wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  /* overflow: hidden prevents the wrapper from growing with content in browsers
+     that don't fully honour the flex min-height: 0 + grid-item chain.
+     The jump button (position: absolute) is unaffected. */
+  overflow: hidden;
+}
+
+.container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.column {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.empty {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+/* System divider (e.g. sandbox reset): horizontal rule with a centered label,
+   placed chronologically among messages. Shown in live + replay. */
+.systemDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.systemDivider::before,
+.systemDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.systemDividerLabel {
+  white-space: nowrap;
+}
+
+.jumpButton {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  padding: 6px 14px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.jumpButton {
+  transition: filter 150ms ease, transform 150ms ease;
+}
+
+.jumpButton:hover {
+  filter: brightness(1.05);
+}
+
+/* Entry animation for new events. The class is applied only to items
+   whose seq was not in the snapshot at DialogTab's first mount. Replaying
+   history on page open does not play the animation. */
+.enter {
+  animation: fadeSlideIn 200ms ease-out both;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: none;
+  }
+  .container {
+    scroll-behavior: auto;
+  }
+}

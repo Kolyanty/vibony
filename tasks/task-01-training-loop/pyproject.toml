@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "task-01-training-loop"
+version = "0.1.0"
+description = "Vibony interview task — PyTorch training loop with checkpointing and resume"
+authors = ["Vibony"]
+readme = "task.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+torch = "^2.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

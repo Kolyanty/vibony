@@ -1,0 +1,141 @@
+.root {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.toggle:hover {
+  color: var(--primary);
+}
+
+.chevron {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Reset boundary: horizontal rule with a centered label, between diff entries. */
+.resetDivider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.resetDivider::before,
+.resetDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.resetLabel {
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.metaDot {
+  opacity: 0.6;
+}
+
+.source[data-source='agent'] {
+  color: var(--brand-teal);
+  font-weight: 500;
+}
+
+.source[data-source='manual'] {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.emptyDiff {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-foreground);
+  background: var(--code-bg);
+  border-radius: 4px;
+}
+
+.largePlaceholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: var(--code-bg);
+  border-radius: 4px;
+}
+
+.largeLabel {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.computeDiffBtn {
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--primary);
+}
+
+.computeDiffBtn:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.computingDiff {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted-foreground);
+  background: var(--code-bg);
+  border-radius: 4px;
+}

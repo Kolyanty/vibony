@@ -1,0 +1,125 @@
+{
+  "task_id": "task-01-training-loop",
+  "key": "single__best_state_mutation",
+  "kind": "single",
+  "persona": "Everything correct except best_state = model.state_dict() without clone; train returns last weights. Candidate accepts AI's 'best weights returned' claim without an eval pass.",
+  "label": {
+    "near_empty": false,
+    "triggered_pitfalls": [
+      2
+    ],
+    "fought_ai": false,
+    "notes": "silent best_state mutation; AI claim accepted without verification"
+  },
+  "events": [
+    [
+      1,
+      "session_start",
+      {
+        "task_id": "task-01-training-loop"
+      }
+    ],
+    [
+      2,
+      "user_message",
+      {
+        "text": "Implement train() with full checkpoint (optimizer, epoch, rng, best weights), early stopping, and return the best model."
+      }
+    ],
+    [
+      3,
+      "assistant_message",
+      {
+        "text": "Done. I track best_metric and keep best_state = model.state_dict() when val improves, save optimizer/epoch/rng each epoch, and load best_state before returning, so the function returns the best-epoch weights."
+      }
+    ],
+    [
+      4,
+      "tool_call",
+      {
+        "tool_name": "edit_file",
+        "input": {
+          "file_path": "train.py"
+        }
+      }
+    ],
+    [
+      5,
+      "tool_result",
+      {
+        "output": "train.py written",
+        "is_error": false
+      }
+    ],
+    [
+      6,
+      "file_changed",
+      {
+        "op": "modified",
+        "file_path": "train.py",
+        "source": "ai"
+      }
+    ],
+    [
+      7,
+      "user_message",
+      {
+        "text": "Run it and the resume check."
+      }
+    ],
+    [
+      8,
+      "command_run",
+      {
+        "command": "poetry run python train.py"
+      }
+    ],
+    [
+      9,
+      "command_output",
+      {
+        "command_id": "c1",
+        "data": "epoch 00 | val 0.88 | best 0.88\nepoch 07 | val 0.099 | best 0.099\nepoch 09 | val 0.114 | best 0.099"
+      }
+    ],
+    [
+      10,
+      "command_finished",
+      {
+        "command_id": "c1",
+        "exit_code": 0
+      }
+    ],
+    [
+      11,
+      "user_message",
+      {
+        "text": "Best was epoch 7 (0.099), last epoch was 0.114. Does train() return the best one?"
+      }
+    ],
+    [
+      12,
+      "assistant_message",
+      {
+        "text": "Yes - it calls model.load_state_dict(best_state) before returning, so you get the best-epoch weights, not the last ones."
+      }
+    ],
+    [
+      13,
+      "user_message",
+      {
+        "text": "Great, that's what I wanted. Submitting."
+      }
+    ],
+    [
+      14,
+      "session_end",
+      {
+        "reason": "submitted"
+      }
+    ]
+  ],
+  "final_files": {
+    "train.py": "import math, os, random\nimport torch, torch.nn as nn\nfrom model import MLP\nfrom data import make_data\n\n\ndef train(model, train_loader, val_loader, n_epochs=20, lr=1e-3, patience=3, checkpoint_path=\"checkpoint.pt\"):\n    optimizer = torch.optim.Adam(model.parameters(), lr=lr)\n    loss_fn = nn.MSELoss()\n    start_epoch, best_metric, best_state, no_improve = 0, math.inf, None, 0\n    if os.path.exists(checkpoint_path):\n        ck = torch.load(checkpoint_path, weights_only=False)\n        model.load_state_dict(ck[\"model\"]); optimizer.load_state_dict(ck[\"optimizer\"])\n        start_epoch = ck[\"epoch\"] + 1; best_metric = ck[\"best_metric\"]; best_state = ck[\"best_state\"]\n        torch.set_rng_state(ck[\"torch_rng\"]); random.setstate(ck[\"python_rng\"])\n    for epoch in range(start_epoch, n_epochs):\n        model.train()\n        for x, y in train_loader:\n            optimizer.zero_grad(); loss = loss_fn(model(x), y); loss.backward(); optimizer.step()\n        model.eval()\n        with torch.no_grad():\n            val = sum(loss_fn(model(x), y).item() for x, y in val_loader) / len(val_loader)\n        if val < best_metric:\n            best_metric = val\n            best_state = model.state_dict()      # BUG: no clone -> live reference to current weights\n            no_improve = 0\n        else:\n            no_improve += 1\n        torch.save({\"model\": model.state_dict(), \"optimizer\": optimizer.state_dict(), \"epoch\": epoch,\n                    \"best_metric\": best_metric, \"best_state\": best_state,\n                    \"torch_rng\": torch.get_rng_state(), \"python_rng\": random.getstate()}, checkpoint_path)\n        print(f\"epoch {epoch:02d} | val {val:.4f} | best {best_metric:.4f}\")\n        if no_improve >= patience: break\n    model.load_state_dict(best_state)            # loads the mutated reference = last weights\n    return model\n"
+  }
+}

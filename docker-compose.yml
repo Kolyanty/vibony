@@ -1,0 +1,98 @@
+# DEV stack only — do NOT deploy. It bind-mounts source + the raw host
+# docker.sock, publishes Postgres on :5432, runs hot-reload dev servers and the
+# committed vibony/vibony creds. Production uses docker-compose.prod.yml (hardened:
+# socket-proxy, prod images, one-shot migrations, no published DB, env-supplied creds).
+services:
+  postgres:
+    image: postgres:16
+    pull_policy: if_not_present     # re-pull only if not in local cache
+    container_name: vibony-postgres
+    environment:
+      POSTGRES_USER: vibony
+      POSTGRES_PASSWORD: vibony
+      POSTGRES_DB: vibony
+    ports:
+      - "5432:5432"
+    volumes:
+      - vibony_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibony -d vibony"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: vibony-backend:latest    # stable local name; used by docker save/load
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: vibony-backend
+    # Loads API keys from backend/.env; VIBONY_DATABASE_URL is overridden below
+    # so it points to the postgres service instead of localhost.
+    env_file:
+      - path: backend/.env
+        required: false
+    environment:
+      VIBONY_DATABASE_URL: postgresql+asyncpg://vibony:vibony@postgres:5432/vibony
+      # Prevents litellm from fetching model pricing JSON from GitHub on import,
+      # so the backend starts even when the network is restricted.
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/repo/backend         # hot-reload source
+      - ./tasks:/repo/tasks             # weakness.yaml + scaffold
+      - ./configs:/repo/configs         # global.yaml
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker-out-of-Docker: sandbox provider
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard:
+    image: vibony-dashboard:latest  # stable local name; used by docker save/load
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    container_name: vibony-dashboard
+    environment:
+      VIBONY_BACKEND_URL: http://backend:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./dashboard:/app/dashboard
+      # Named volume keeps node_modules from the image (platform-correct binaries)
+      # so the bind mount above doesn't overwrite them with host node_modules.
+      # The dev entrypoint refreshes this volume when package manifests change.
+      - dashboard_node_modules:/app/dashboard/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Dex OIDC provider for local self-hosted auth testing.
+  # Start with: docker compose --profile dev-oidc up dex
+  # Config: infra/dev-oidc/dex.yaml (static users + vibony-dev client).
+  # Backend .env for oidc mode:
+  #   VIBONY_AUTH_MODE=oidc
+  #   VIBONY_OIDC_ISSUER=http://localhost:5556
+  #   VIBONY_OIDC_CLIENT_ID=vibony-dev
+  #   VIBONY_OIDC_CLIENT_SECRET=vibony-dev-secret
+  dex:
+    image: ghcr.io/dexidp/dex:v2.39.1
+    pull_policy: if_not_present
+    container_name: vibony-dex
+    profiles: [dev-oidc]
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./infra/dev-oidc/dex.yaml:/etc/dex/config.yaml:ro
+    ports:
+      - "5556:5556"
+
+volumes:
+  vibony_postgres_data:
+  dashboard_node_modules:

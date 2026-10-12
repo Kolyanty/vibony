@@ -1,0 +1,417 @@
+.row {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding-left: 32px;
+}
+
+.bubble {
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.role {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
+.toolName {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.time {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.header {
+  margin: 0 0 6px;
+}
+
+.headerLine {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--foreground);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  word-break: break-all;
+}
+
+.arrow {
+  color: var(--muted-foreground);
+  font-weight: 600;
+}
+
+.flag,
+.dim {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.bashHeaderLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bashHeaderLine > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.permissionBadge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.permissionBadge[data-decision='user_allow'] {
+  background: rgba(34, 197, 94, 0.15);
+  color: #166534;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.permissionBadge[data-decision='user_deny'],
+.permissionBadge[data-decision='policy_deny'] {
+  background: var(--destructive-soft);
+  color: var(--destructive);
+  border: 1px solid var(--destructive);
+}
+
+.cwd {
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.fallbackInput {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--code-bg);
+  padding: 8px;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pending {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+/* ---- Collapsible result ---- */
+
+.collapsible {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.collapseToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: fit-content;
+}
+
+.collapseToggle:hover .collapseChevron {
+  color: var(--muted-foreground);
+}
+
+.collapseChevron {
+  display: inline-block;
+  width: 10px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  transition: color 150ms ease;
+}
+
+.collapseLabel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.readPreview {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--code-bg);
+  padding: 6px 8px;
+  border-radius: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* ---- Result rendering ---- */
+
+.resultBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resultLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
+.resultOk {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--success);
+}
+
+.genericOutput {
+  margin: 0;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--code-bg);
+  padding: 6px 8px;
+  border-radius: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.matchList {
+  margin: 0;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--code-bg);
+  padding: 6px 8px;
+  border-radius: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* ---- Bash result ---- */
+
+.bashResult {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.bashResult[data-status='ok'] {
+  border-color: #86efac;
+}
+
+.bashResult[data-status='fail'] {
+  border-color: var(--destructive);
+}
+
+.bashHeader {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 4px 10px;
+  background: rgba(15, 23, 42, 0.04);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.bashLabel {
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.exitOk {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.exitFail {
+  color: var(--destructive);
+  font-weight: 600;
+}
+
+.bashStdout {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.bashStdoutFaded {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 8em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+}
+
+.bashExpandButton {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 150ms ease;
+}
+
+.bashExpandButton:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.bashExpandButton[data-variant='stderr'] {
+  border-top: 1px solid var(--destructive);
+  background: rgba(239, 68, 68, 0.06);
+  color: var(--destructive);
+}
+
+.bashExpandButton[data-variant='stderr']:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.bashStderrFaded {
+  margin: 0;
+  padding: 4px 10px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--destructive);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 8em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+}
+
+.bashStderrWrap {
+  border-top: 1px dashed var(--destructive);
+  background: var(--destructive-soft);
+}
+
+.bashStderrLabel {
+  display: block;
+  padding: 4px 10px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--destructive);
+  font-family: var(--font-mono);
+}
+
+.bashStderr {
+  margin: 0;
+  padding: 4px 10px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--destructive);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.bashFallback {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--code-bg);
+  border-radius: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* ---- Error panel ---- */
+
+.errorPanel {
+  border: 1px solid var(--destructive);
+  background: var(--destructive-soft);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.errorLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--destructive);
+  margin-bottom: 4px;
+}
+
+.errorBody {
+  margin: 0;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--destructive);
+  max-height: 240px;
+  overflow-y: auto;
+}

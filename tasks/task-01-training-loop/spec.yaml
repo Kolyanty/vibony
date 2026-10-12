@@ -1,0 +1,151 @@
+# Source of truth for the task. Format — docs/task-design/format.md §5.
+# task.md — candidate projection: context + scaffold + contract + acceptance.
+# INTERVIEWER.md — operational follow-ups and calibration notes (not here).
+# weakness.yaml — for the AI assistant (plants the controlled traps; not here).
+
+id: task-01-training-loop
+format_version: 1   # portable task-artifact format (format.md §6)
+discipline: ml-infra
+runtime_image: vibony/sandbox-py:3.12   # Python + PyTorch; platform is language-agnostic (format.md §"Language-agnostic")
+duration_minutes: 60
+difficulty: middle
+
+context: |
+  The candidate receives a ready-made model (MLP regression) and a synthetic dataset.
+  Implements a training loop in train.py with checkpoint after each epoch and resume
+  after interruption. The spec is intentionally incomplete: it sets the goal ("progress
+  is not lost") and does not enumerate what should be in the checkpoint or what
+  guarantees resume must provide. The skill application point — independently designing
+  the equivalence invariant (optimizer state, RNG, epoch counter, best vs last weights)
+  and verifying by action.
+
+scaffold:
+  - path: model.py
+    role: model (MLP), candidate does not touch
+  - path: data.py
+    role: data (synthetic regression, train/val DataLoader), candidate does not touch
+  - path: train.py
+    role: implementation stub — train(...) signature + NotImplementedError
+  - path: pyproject.toml
+    role: dependencies (torch ^2.3), poetry, python 3.12
+
+contract:
+  # What is explicitly specified in task.md. Additional expectations (best weights,
+  # equivalence of interrupted run to continuous, checkpoint integrity on crash)
+  # the candidate must formulate themselves — see expected_ai_pitfalls.
+  - "Adam optimizer with given lr; MSELoss."
+  - "Each epoch: pass over train_loader, validation on val_loader, print (epoch, train_loss, val_loss)."
+  - "Early stopping: if val_loss doesn't improve for patience epochs in a row — exit loop before n_epochs."
+  - "Checkpoint after each epoch to checkpoint_path: state sufficient for resuming."
+  - "Resume: if checkpoint_path exists at start — training continues from there, does not restart; progress of interrupted run is not lost."
+
+acceptance_criteria:
+  # Correspond to what the candidate sees in task.md. Equivalence test and
+  # "return best, not last" are intentionally NOT in acceptance: their formulation is
+  # itself the signal — not a checklist item.
+  - "poetry install --no-root and poetry run python train.py complete without errors and return a trained model."
+  - "When run with n_epochs=10, then with n_epochs=20 (checkpoint.pt not deleted), training continues from epoch 10 — visible in logs by epoch numbering."
+  - "Early stopping triggers: on the synthetic data from data.py with patience=1, n_epochs=50, the loop stops before 50."
+
+expected_ai_pitfalls:
+  # All six traps carry the full controlled-trap contract (format.md §4.5/§5),
+  # reconciled with weakness.yaml (the source of the AI's behavior). The
+  # trigger/flawed_behavior/correct_behavior/defense/check fields let the trap-bench drive
+  # their correct (concede) + breaking (verify) scenarios and let the judge anchor to them.
+  # Trap 5 (epoch counter) is split out of trap 0 (see the shadowing note below).
+  # weakness.yaml is unchanged by the split: blindspots[0] already plants the bare-save
+  # behavior that omits optimizer/RNG/epoch together — the split is measurement-only.
+  # Note the deliberate overlaps the bench measures as "shadowing": traps 0 (optimizer),
+  # 4 (RNG) and 5 (epoch) are three facets of the same bare-`model.state_dict()` save —
+  # each is a distinct AST-checkable omission; trap 1 and trap 2 both touch best-weights —
+  # each contract still describes its own distinct flaw. (Splitting the epoch counter
+  # out of the original trap 0 into its own trap 5 lets trap 0 measure the optimizer
+  # facet cleanly — the bundling muddied trap-0's signal in the baseline.)
+  - description: "Checkpoint omits optimizer.state_dict() — saves only model weights, so on resume Adam's moment estimates are lost."
+    trigger: "Candidate asks to implement train(...) / checkpoint / resume in free-form, without naming optimizer state as something the checkpoint must carry."
+    flawed_behavior: "AI saves torch.save(model.state_dict(), path) (or a dict with no optimizer_state_dict key). On resume the optimizer is recreated fresh — Adam loses its moment estimates. Resume 'works' but is not equivalent to a continuous run. The AI does not volunteer the missing optimizer state."
+    correct_behavior: "If the candidate names the missing optimizer state specifically (the optimizer is recreated fresh / Adam moments lost) or formulates the equivalence invariant ('after resume it must equal a continuous run'), the AI concedes, explains, and adds optimizer_state_dict to the checkpoint + restores it on resume."
+    defense: "Under vague pushback ('does resume work?', 'just redo it', 'are you sure?'), the AI confidently affirms resume works and the weights are saved/restored — it does not volunteer the missing optimizer state and does not suggest an equivalence test."
+    detection: "Equivalence test shows divergence in val_loss after resume; the divergence persists even once the epoch counter is fixed."
+    check: "Equivalence: |loss(0→20) − loss(0→10→10→20)| within tolerance. AST/grep: the saved checkpoint dict lacks an optimizer_state_dict key (a bare model.state_dict() save, or a dict without optimizer state)."
+    severity: blocking
+  - description: "train(...) returns model (last weights), not the model with best epoch weights."
+    trigger: "Candidate asks to implement train(...) freeform, without specifying that the function must return the best-val-loss weights (not the last)."
+    flawed_behavior: "AI returns `model` with its last weights (after the loop / after patience epochs of overfitting). It never tracks the best-val-loss epoch and never restores those weights, and does not raise best-vs-last on its own."
+    correct_behavior: "If the candidate names that the function must return the BEST weights (the lowest-val-loss epoch), not the last — or evaluates the returned model's val_loss and compares it against the best logged value — the AI concedes and adds best-weights tracking + restore before return."
+    defense: "Under vague pushback ('does it return the best model?', 'are you sure?'), the AI answers evasively ('a trained model is returned' / 'the model after the last epoch') and does not volunteer best-weights tracking."
+    detection: "val_loss of the trained model != best_metric. With patience=1 the divergence becomes numerically significant."
+    check: "Eval the returned model on val and compare to the best val_loss in the log — with the flaw they diverge (returned == last-epoch loss). Widen with patience=1, n_epochs=50. AST/grep: no best_state tracking; `return model` of the last weights."
+    severity: degrading
+  - description: "best_state = model.state_dict() without cloning — this is a reference; by end of training points to current weights, not best ones."
+    trigger: "Candidate asks to add best-weights logic / return the best model (this trap only applies once best-weights tracking exists — it shadows trap 1)."
+    flawed_behavior: "AI implements best_state = model.state_dict() — a live reference, no .clone() / copy.deepcopy. By the end of training best_state aliases the current (last) weights, so load_state_dict(best_state) restores the last weights, not the best. The AI does not explain the aliasing risk and typically claims the best model was returned."
+    correct_behavior: "If the candidate points out that model.state_dict() returns tensor references that keep mutating (best_state must be cloned / deepcopied), or verifies that the restored weights are not actually the best epoch's, the AI concedes and fixes via {k: v.detach().clone() ...} or copy.deepcopy."
+    defense: "Under vague pushback the AI affirms the best model is returned and does not volunteer the missing clone (this trap is silent — see silent_fire_risk)."
+    detection: |
+      NOT observable through standard console output of train.py: the log prints
+      train/val_loss for each epoch but does not mark which epoch was best, and does
+      not print val_loss of the returned model after the loop ends. Without explicit
+      verification, both candidate and AI may equally believe "best weights returned".
+      To observe: (a) candidate requests printing best_metric on a separate line at
+      completion; (b) makes an eval pass on the returned model (val_loss(trained_model))
+      and compares with best_metric from the log. With the mutation bug the numbers
+      diverge: returned val_loss == val_loss of the last epoch, not best.
+    check: "Compare the restored model's params (or its val_loss) to the genuine best epoch's — with the reference bug they equal the LAST epoch's. AST/grep: best_state = model.state_dict() with no .clone() / copy.deepcopy. Silent under the standard run — the breaking path won't surface it; this trap shadows trap 1."
+    severity: degrading
+    silent_fire_risk: |
+      High. The AI in the response after running typically claims "model returned best
+      weights" (violating global.yaml "do not interpret run results"), and a P1–P2
+      candidate takes it at face value. If the interviewer sees that the candidate
+      accepted such a claim without an eval pass — must ask follow-up "Candidate
+      accepted AI's claim about best weights without verification"
+      (see INTERVIEWER.md).
+  - description: "torch.load without weights_only=False — on torch >= 2.6 crashes with UnpicklingError for non-tensor objects in checkpoint (e.g. random.getstate())."
+    trigger: "Candidate asks to implement resume / load the checkpoint (this trap only bites once the checkpoint carries non-tensor state — it shadows trap 4)."
+    flawed_behavior: "AI writes torch.load(path) with no weights_only flag. If the checkpoint carries non-tensor state (RNG), the load crashes on torch>=2.6 (weights_only defaults to True); otherwise it silently loads weights only. The AI does not mention the flag or its pickle security trade-off."
+    correct_behavior: "If the candidate asks why the load crashes / about weights_only / the pickle security trade-off, the AI explains correctly: the default flipped to True in torch 2.6, non-tensor objects need weights_only=False, and that flag executes pickle (a trust trade-off)."
+    defense: "If the load crashed, the AI suggests torch.load(path, weights_only=False) WITHOUT discussing what the flag does or its trade-off; under vague pushback it never raises weights_only on its own."
+    detection: "Exception on first run after adding RNG state to checkpoint."
+    check: "AST/grep: torch.load without weights_only=False while the checkpoint saves non-tensor (RNG) state → crashes on torch>=2.6. With only tensor state, the missing flag is runtime-/version-dependent (defer to the judge)."
+    severity: blocking
+  - description: "RNG state (torch + python random) not saved — batch order in DataLoader(shuffle=True) after resume differs from continuous run."
+    trigger: "Candidate asks to implement checkpoint / resume freeform, without naming RNG / DataLoader-shuffle state as something to save."
+    flawed_behavior: "AI saves no RNG state (torch.get_rng_state / random.getstate) in the checkpoint. After resume the DataLoader(shuffle=True) batch order differs from a continuous run, so val_loss diverges even with optimizer state restored. The AI does not volunteer RNG state."
+    correct_behavior: "If the candidate names that RNG / DataLoader-shuffle state must be saved + restored for equivalence (or that the batch order differs after resume), the AI concedes and adds torch + python RNG state to the checkpoint."
+    defense: "Under vague pushback on the divergence ('the numbers don't match', 'just fix it', 'are you sure?'), the AI explains it away as floating-point noise / shuffle randomness / a local minimum (the global.yaml cover story) and does NOT volunteer the missing RNG state or suggest saving it."
+    detection: "Equivalence test shows divergence even with correctly saved optimizer state; converges with shuffle=False."
+    check: "Equivalence: with optimizer state saved but RNG omitted, a 10+10 resume still diverges from a continuous 20-epoch run; it converges only once RNG state is saved (or shuffle=False). AST/grep: the checkpoint dict lacks rng-state keys/values."
+    severity: degrading
+  - description: "Checkpoint omits the epoch counter — on resume the loop restarts from epoch 0 instead of continuing, re-training already-done epochs."
+    trigger: "Candidate asks to implement checkpoint / resume in free-form, without naming the epoch counter as something the checkpoint must carry (a facet of the same bare-weights save as trap 0 / trap 4 — it shadows them)."
+    flawed_behavior: "AI saves no epoch number in the checkpoint and uses `for epoch in range(n_epochs)` from 0 on resume (no start_epoch). After resume the loop counts from 0 and re-trains epochs already done. The AI does not volunteer the missing epoch counter."
+    correct_behavior: "If the candidate names that the epoch counter must be saved + restored (resume must continue from the saved epoch, not repeat 'epoch 00'), the AI concedes and adds 'epoch' to the checkpoint + start_epoch on resume."
+    defense: "Under vague pushback ('does resume continue from where it stopped?', 'are you sure?'), the AI confidently affirms resume continues from the saved point and does not volunteer the missing epoch counter."
+    detection: "Repeated 'epoch 00' / 'epoch 1' in the logs after resume — visible immediately, no equivalence test needed."
+    check: "Run n_epochs=10 then n_epochs=20 with the checkpoint kept — logs must continue from epoch 10, not repeat 'epoch 00'. AST/grep: the saved checkpoint dict lacks an epoch-counter key (excluding the early-stopping patience counter)."
+    severity: degrading
+
+failure_signal:
+  - "Acceptance criterion 'equivalence' not met, candidate didn't notice."
+  - "Acceptance criterion 'resume from correct epoch' not met (epoch 00 repeats in logs), candidate didn't notice."
+  - "Acceptance criterion 'best weights' not met, candidate accepted return of last weights."
+  - "Candidate accepted AI's confident explanation of float noise as reason for divergence after resume, didn't check the real cause (missing optimizer/RNG state)."
+  - "Candidate accepted torch.load(..., weights_only=False) from AI without understanding what the flag does."
+
+known_limitations:
+  - "Early stopping doesn't trigger on default parameters: the synthetic data is smooth, val_loss drops monotonically for all 20 epochs. In task.md there is an explicit instruction to use patience=1, n_epochs=50 for verification. If calibration shows this confuses candidates — add noise to val metric or a scenario with a noisy task."
+  - "The effect of missing optimizer state on this model is numerically small: Adam warms up quickly on a simple task. The main channel for catching the trap — spec comparison and equivalence test, not 'huge numerical divergence'. If the trap passes by for strong candidates — replace the model with something that has a more warmup-sensitive optimizer (LR scheduler + warmup, deeper network)."
+  - "The behavior of torch.load(weights_only=...) depends on the torch version. pyproject pins ^2.3, but poetry install installs the latest (as of 2026-05 this is 2.7). The default behavior changed in 2.4 → 2.6. If we get stuck on a specific version — trap 5 becomes more stable."
+  - |
+    The best_state mutation trap (expected_ai_pitfalls[2]) is **silent**: train.py
+    in default form does not print val_loss of the returned model and does not mark
+    the best epoch with an explicit line. The candidate may "close" best weights
+    without verifying that they actually returned. Calibration signal sim-14
+    (2026-05-12): both candidate, AI, and judge accepted the return of best weights
+    as fact, although the code had a mutation bug. Possible fixes if the trap
+    consistently passes by: (a) add to task.md acceptance item
+    "val_loss of returned model == best val_loss from log" — this turns the
+    silent trap into a visible one; (b) leave it silent as a deliberate signal
+    on "doesn't take on faith" — then interviewer.md must contain
+    an explicit follow-up for verification.
+  - "Reference _solution.py is in the repo for calibration and regression; start-run.sh excludes it when copying to candidate dir."

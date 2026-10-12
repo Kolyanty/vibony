@@ -1,0 +1,52 @@
+configs/simulation.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# OS
+.DS_Store
+
+# Local Claude Code configuration (settings, hooks, memory)
+.claude/
+
+# Design scratch — throwaway mockups/palette previews, not part of the product
+.design-scratch/
+
+# Large binaries / personal recordings
+*.mov
+*.mp4
+*.pt
+*.pkl
+
+# Secrets / local configuration
+.env
+.env.local
+!.env.example
+
+# Local Claude Code settings for run dirs (may contain real tokens)
+scripts/claude-settings.template.json
+
+# Generated calibration scorecard (harness output, not an artifact)
+backend/scripts/assessment_eval/scorecard.md
+# Generated trap-firing benchmark output (harness runs, not an artifact)
+# Timestamped per-run dirs: scorecard.md + outcomes.jsonl + dumps/ (kept history)
+backend/scripts/assessment_eval/runs/
+backend/scripts/assessment_eval/trapbench-scorecard.md
+backend/scripts/assessment_eval/*-outcomes.jsonl
+# Per-run dump dirs (transcripts of throwaway TRAP-* runs)
+backend/judge-dump*/
+backend/scripts/assessment_eval/*-dump/
+
+# Real session transcripts and owner-only calibration annotations.
+backend/scripts/assessment_eval/trap_corpus/
+backend/scripts/assessment_eval/private-trap-labels.json

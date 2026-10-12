@@ -1,0 +1,85 @@
+# Weakness config for the AI assistant on task-02 (seat reservation).
+# Must not reach the candidate. Merged on top of configs/global.yaml.
+# See docs/weakness-format.md. The controlled-trap contract lives in spec.yaml
+# (expected_ai_pitfalls); this file is the behavior the AI actually follows.
+
+weakness:
+  blindspots:
+    - issue: |
+        reserve() does a non-atomic read-modify-write on the shared stock: it reads
+        the available count with `await store.get(...)`, checks it, then writes the
+        decremented value with `await store.set(...)`. The await between read and
+        write is a real suspension point, so concurrent reservations all read the same
+        pre-decrement stock, all pass the check, and all commit — the service
+        oversells. Single-client it looks correct.
+      if_asked_vaguely: |
+        Do not raise concurrency or atomicity on your own. If asked "is it correct?"
+        or "will it hold under load?" — confidently say yes, it reserves when stock is
+        available and rejects otherwise. Do not mention the race, do not suggest
+        running a concurrent test, do not mention locks or transactions.
+      if_asked_directly: |
+        If the candidate specifically points out the race / that the read-check-write
+        is not atomic / that concurrent callers both read the old stock and both
+        commit / that it needs a lock or transaction — agree, explain, and fix it by
+        serializing the critical section with a single shared per-item asyncio.Lock.
+
+    - issue: |
+        reserve() ignores request_id. A retried request (same request_id, a client
+        retry after a timeout) runs the full decrement again, so one logical
+        reservation reserves twice. There is no dedup of processed request_ids.
+      if_asked_vaguely: |
+        Do not raise retries or idempotency on your own. If asked "is it safe to call
+        again?" or "what is request_id for?" — answer evasively ("it identifies the
+        request"). Do not mention that a retry reserves twice or that request_id is for
+        deduplication.
+      if_asked_directly: |
+        If the candidate points out retries must be idempotent / a repeated request_id
+        must not reserve twice — agree and record processed request_ids, returning the
+        stored result on a repeat.
+
+    - issue: |
+        reserve() does not validate qty. qty <= 0 is not rejected: a negative qty
+        passes the `current >= qty` check and, when decremented, increases the stock
+        (current - (-5) = current + 5); a zero qty returns ok without reserving.
+      if_asked_vaguely: |
+        Do not raise input validation on your own. If asked "any edge cases?" / "is the
+        input handling fine?" — say it handles the cases. Do not mention the missing
+        qty guard.
+      if_asked_directly: |
+        If the candidate points out qty must be a positive integer / qty <= 0 must be
+        rejected — agree and add the guard before touching stock.
+
+  patterns:
+    - trigger: "Candidate asks to implement reserve() / the reservation logic in free-form"
+      action: |
+        Write the straightforward version:
+        - current = await store.get(item_id)
+        - if current >= qty: await store.set(item_id, current - qty); return ReserveResult(ok=True, remaining=current - qty)
+        - else: return ReserveResult(ok=False, remaining=current)
+        No lock, no transaction, no atomicity. Do NOT consult request_id. Do NOT
+        validate qty. Do NOT add any of these on your own or mention them. If the
+        candidate didn't ask for them — don't do them and don't bring them up.
+
+    - trigger: "Candidate ran a concurrent test and saw an oversell / more confirmed than stock"
+      action: |
+        Acknowledge the observable result honestly — yes, the run confirmed more than
+        the stock, that is unexpected. Do NOT lie about the number or claim the test is
+        miscounting (no "the test may be double-counting"). But do not volunteer the
+        diagnosis: don't name the race / the non-atomic read-check-write, don't suggest a
+        lock. If pushed vaguely, turn it back ("what do you think is causing it?") until
+        the candidate names the race specifically.
+
+    - trigger: "Candidate asks 'is it safe under concurrency?' without naming the race"
+      action: |
+        Confidently confirm it reserves when stock is available and rejects otherwise.
+        Do not volunteer the race, do not suggest a concurrent test.
+
+  code_habits:
+    - "reserve(): current = await store.get(id); if current >= qty: await store.set(id, current - qty) — non-atomic read-check-write, no lock."
+    - "Do not consult request_id in reserve() until explicitly asked to dedup retries."
+    - "Do not validate qty (no qty > 0 / integer check) until explicitly asked."
+    - "Do not add atomic/transaction wrappers, input validation, or idempotency as a bonus."
+
+  style:
+    confidence: high
+    explanation_depth: medium

@@ -1,0 +1,539 @@
+/* ---- Centered layout for loading / error states ---- */
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ---- Full-height shell for the ready state ---- */
+
+.appShell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card);
+}
+
+.headerLeft {
+  min-width: 0;
+  flex: 1;
+}
+
+.backLink {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+
+.backLink:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.titleText {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copySr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.copiedHint {
+  font-size: 12px;
+  color: var(--success);
+}
+
+.subtitle {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.codeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font-size: 11px;
+  transition: color 150ms ease;
+}
+
+.codeChip:hover {
+  color: var(--foreground);
+}
+
+.codeChip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.codeInline {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: transparent;
+  padding: 0;
+  letter-spacing: 0.02em;
+}
+
+.dot {
+  opacity: 0.5;
+}
+
+.muted {
+  color: var(--muted-foreground);
+}
+
+.error {
+  color: var(--destructive);
+  padding: 8px 16px;
+  flex-shrink: 0;
+}
+
+.headerRight {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.status {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.status[data-status='pending'] {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.status[data-status='active'] {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.status[data-status='completed'] {
+  color: var(--muted-foreground);
+  background: var(--muted);
+}
+
+/* ---- Header action buttons ---- */
+
+.endButton,
+.candidateLinkButton,
+.shareButton,
+.resetButton {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.candidateLinkButton:hover,
+.shareButton:hover:not(:disabled),
+.resetButton:hover:not(:disabled) {
+  background: var(--muted);
+}
+
+.shareButton:disabled,
+.resetButton:disabled {
+  cursor: not-allowed;
+  color: var(--muted-foreground);
+}
+
+.endButton {
+  border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
+  color: var(--destructive);
+}
+
+.endButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--destructive) 8%, transparent);
+}
+
+.endButton:focus-visible {
+  outline: 2px solid var(--destructive);
+  outline-offset: 2px;
+}
+
+.endButton:disabled {
+  cursor: not-allowed;
+  color: var(--muted-foreground);
+  border-color: var(--border);
+  background: var(--muted);
+}
+
+/* ---- CSS Grid IDE layout ---- */
+/*
+  Columns: [sidebar] [sb-resizer 4px] [editor 1fr] [right-resizer 4px] [right]
+  Rows:    [content 1fr] [console auto]
+
+  Grid assignments:
+    sidebarPanel   → col 1, row 1
+    sidebarResizer → col 2, row 1     (row 1 only — console spans below)
+    editorPanel    → col 3, row 1
+    rightResizer   → col 4, row 1     (row 1 only)
+    rightPanel     → col 5, rows 1-2  (dialog spans full height)
+    consoleSection → cols 1-4, row 2  (spans sidebar + resizers + editor)
+*/
+
+.mainArea {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px 4px 1fr 4px 360px;
+  grid-template-rows: 1fr auto;
+  overflow: hidden;
+}
+
+/* ---- Left: file tree ---- */
+
+.sidebarPanel {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+}
+
+.fileTreePanel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.treeEmpty {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding: 12px 16px;
+  margin: 0;
+}
+
+/* ---- Resize handles ---- */
+
+.sidebarResizer,
+.rightResizer {
+  grid-row: 1;
+  cursor: col-resize;
+  background: var(--border);
+  user-select: none;
+  transition: background 120ms ease;
+  z-index: 1;
+}
+
+.sidebarResizer { grid-column: 2; }
+.rightResizer { grid-column: 4; }
+
+.sidebarResizer:hover,
+.sidebarResizer:active,
+.rightResizer:hover,
+.rightResizer:active {
+  background: var(--primary);
+}
+
+/* ---- Center: Monaco editor (read-only) + file history tabs ---- */
+
+.editorPanel {
+  grid-column: 3;
+  grid-row: 1;
+  /* min-width:0 lets the 1fr track keep its share; without it a wide diff in
+     historyPane expands the column and pushes the chat panel past overflow:hidden. */
+  min-width: 0;
+  min-height: 0;
+  background: var(--muted);
+  display: flex;
+  flex-direction: column;
+}
+
+.editorTabBar {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  padding: 0 4px;
+}
+
+.editorTabBtn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  margin-bottom: -1px;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.editorTabBtn:hover {
+  color: var(--foreground);
+}
+
+.editorTabBtn[data-active='true'] {
+  color: var(--foreground);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+.editorContent {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.historyPane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+.editorLoading,
+.editorPlaceholder {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding: 12px 16px;
+  margin: 0;
+}
+
+/* ---- Right: AI dialog ---- */
+
+.rightPanel {
+  grid-column: 5;
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--card);
+}
+
+.chatArea {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* AI assessment tab fills the right panel and scrolls internally. */
+.assessmentArea,
+/* Structural timeline tab — same fill/scroll behaviour. */
+.timelineArea {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Bottom: console output — spans cols 1-4 ---- */
+
+.consoleSection {
+  grid-column: 1 / 5;
+  grid-row: 2;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- Responsive: stack on narrow screens ---- */
+
+@media (max-width: 900px) {
+  .mainArea {
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebarPanel {
+    height: 140px;
+    flex-shrink: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebarResizer,
+  .rightResizer {
+    display: none;
+  }
+  .editorPanel {
+    min-height: 200px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .consoleSection {
+    flex-shrink: 0;
+  }
+  .rightPanel {
+    flex: 1;
+    min-height: 200px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* On narrow screens the header collapses; status/badge/end move below the title. */
+@media (max-width: 767px) {
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .headerRight {
+    gap: 8px;
+  }
+}
+
+/* ----: sandbox restored banner ---- */
+
+.sandboxRestoredBanner {
+  display: inline-block;
+  margin: 4px 12px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--success);
+  background: var(--success-soft);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  border-radius: var(--radius-md);
+}
+
+/* ----: presence alert + panel ---- */
+
+.presenceAlert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  border-radius: var(--radius-md);
+  padding: 3px 8px 3px 10px;
+}
+
+.presenceAlertDismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--warn);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.7;
+}
+
+.presenceAlertDismiss:hover {
+  opacity: 1;
+}
+
+.presencePanel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.presencePanelTitle {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.presenceAttendee {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.presenceAttendee[data-active='true'] {
+  color: var(--foreground);
+}
+
+.presenceDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.presenceAttendee[data-active='true'] .presenceDot {
+  background: var(--success);
+}
+
+.presenceRoleTag {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  margin-left: 2px;
+}

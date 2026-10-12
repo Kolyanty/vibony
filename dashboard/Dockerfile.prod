@@ -1,0 +1,19 @@
+# Production dashboard image. Closes: a real `vite build` served as
+# static files by Caddy — NOT the Vite/esbuild dev server (which any website can
+# talk to: GHSA-67mh-4wv8-2f99). No dev deps in the runtime layer.
+#
+# Build from the monorepo root:
+#   docker build -f dashboard/Dockerfile.prod -t vibony-dashboard:prod .
+#
+# NOTE: pin both base images by digest before a real prod deploy.
+FROM node:20-alpine AS build
+WORKDIR /app/dashboard
+COPY dashboard/package.json dashboard/package-lock.json ./
+RUN npm ci
+COPY dashboard/ .
+RUN npm run build   # tsc -b + vite build → dist/
+
+FROM caddy:2-alpine
+COPY dashboard/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dashboard/dist /srv
+EXPOSE 80

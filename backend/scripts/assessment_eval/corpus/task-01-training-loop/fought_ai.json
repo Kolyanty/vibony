@@ -1,0 +1,141 @@
+{
+  "task_id": "task-01-training-loop",
+  "key": "fought_ai",
+  "kind": "fought_ai",
+  "persona": "AI proposes a naive model-only checkpoint; candidate rejects the diff, reasons about equivalence, lands the correct full checkpoint.",
+  "label": {
+    "near_empty": false,
+    "triggered_pitfalls": [],
+    "fought_ai": true,
+    "notes": "candidate rejected bad AI advice; expect a strength/pattern"
+  },
+  "events": [
+    [
+      1,
+      "session_start",
+      {
+        "task_id": "task-01-training-loop"
+      }
+    ],
+    [
+      2,
+      "user_message",
+      {
+        "text": "Help me add checkpoint + resume to train()."
+      }
+    ],
+    [
+      3,
+      "assistant_message",
+      {
+        "text": "Simplest is to save just the weights: torch.save(model.state_dict(), checkpoint_path), and load them on resume. Here's the diff."
+      }
+    ],
+    [
+      4,
+      "tool_call",
+      {
+        "tool_name": "edit_file",
+        "input": {
+          "file_path": "train.py"
+        }
+      }
+    ],
+    [
+      5,
+      "tool_result",
+      {
+        "output": "proposed diff: checkpoint = model.state_dict() only",
+        "is_error": false
+      }
+    ],
+    [
+      6,
+      "diff_rejected",
+      {
+        "reason": "Only saving weights won't make a resumed run equivalent to a continuous one - Adam's moment estimates and the epoch counter are lost, and shuffle order changes without RNG state. I'll save optimizer, epoch, best_metric, cloned best_state and RNG too."
+      }
+    ],
+    [
+      7,
+      "user_message",
+      {
+        "text": "I rejected that. Save optimizer.state_dict(), epoch, best_metric, a cloned best_state, and torch+python RNG state, and restore all of it on resume."
+      }
+    ],
+    [
+      8,
+      "assistant_message",
+      {
+        "text": "Understood - full checkpoint with optimizer/epoch/rng/best_state, restored on resume."
+      }
+    ],
+    [
+      9,
+      "tool_call",
+      {
+        "tool_name": "edit_file",
+        "input": {
+          "file_path": "train.py"
+        }
+      }
+    ],
+    [
+      10,
+      "tool_result",
+      {
+        "output": "train.py written",
+        "is_error": false
+      }
+    ],
+    [
+      11,
+      "file_changed",
+      {
+        "op": "modified",
+        "file_path": "train.py",
+        "source": "ai"
+      }
+    ],
+    [
+      12,
+      "command_run",
+      {
+        "command": "poetry run python -c 'from train import train; from model import MLP; from data import make_data; tl,vl=make_data(); train(MLP(),tl,vl,n_epochs=10); train(MLP(),tl,vl,n_epochs=20)'"
+      }
+    ],
+    [
+      13,
+      "command_output",
+      {
+        "command_id": "c1",
+        "data": "[resume] from epoch 10, best_metric=0.110\nepoch 10 | val 0.107\nepoch 19 | val 0.099"
+      }
+    ],
+    [
+      14,
+      "command_finished",
+      {
+        "command_id": "c1",
+        "exit_code": 0
+      }
+    ],
+    [
+      15,
+      "user_message",
+      {
+        "text": "Resumes from epoch 10 with optimizer/rng restored. Good."
+      }
+    ],
+    [
+      16,
+      "session_end",
+      {
+        "reason": "submitted"
+      }
+    ]
+  ],
+  "final_files": {
+    "train.py": "import math, os, random\nimport torch, torch.nn as nn\nfrom model import MLP\nfrom data import make_data\n\n\ndef _eval(model, loader, loss_fn):\n    model.eval()\n    total, n = 0.0, 0\n    with torch.no_grad():\n        for x, y in loader:\n            total += loss_fn(model(x), y).item() * x.size(0)\n            n += x.size(0)\n    return total / n\n\n\ndef train(model, train_loader, val_loader, n_epochs=20, lr=1e-3, patience=3, checkpoint_path=\"checkpoint.pt\"):\n    optimizer = torch.optim.Adam(model.parameters(), lr=lr)\n    loss_fn = nn.MSELoss()\n    start_epoch, best_metric, best_state, no_improve = 0, math.inf, None, 0\n\n    if os.path.exists(checkpoint_path):\n        ck = torch.load(checkpoint_path, weights_only=False)\n        model.load_state_dict(ck[\"model\"])\n        optimizer.load_state_dict(ck[\"optimizer\"])\n        start_epoch = ck[\"epoch\"] + 1\n        best_metric, best_state = ck[\"best_metric\"], ck[\"best_state\"]\n        torch.set_rng_state(ck[\"torch_rng\"]); random.setstate(ck[\"python_rng\"])\n        print(f\"[resume] from epoch {start_epoch}, best_metric={best_metric:.4f}\")\n\n    for epoch in range(start_epoch, n_epochs):\n        model.train()\n        for x, y in train_loader:\n            optimizer.zero_grad()\n            loss = loss_fn(model(x), y)\n            loss.backward(); optimizer.step()\n        val = _eval(model, val_loader, loss_fn)\n        improved = val < best_metric\n        if improved:\n            best_metric = val\n            best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}\n            no_improve = 0\n        else:\n            no_improve += 1\n        torch.save({\"model\": model.state_dict(), \"optimizer\": optimizer.state_dict(),\n                    \"epoch\": epoch, \"best_metric\": best_metric, \"best_state\": best_state,\n                    \"torch_rng\": torch.get_rng_state(), \"python_rng\": random.getstate()}, checkpoint_path)\n        print(f\"epoch {epoch:02d} | val {val:.4f} | best {best_metric:.4f}{' *' if improved else ''}\")\n        if no_improve >= patience:\n            print(\"[early stop]\"); break\n\n    if best_state is not None:\n        model.load_state_dict(best_state)\n    return model\n"
+  }
+}
